@@ -198,6 +198,7 @@ td.amt{font-weight:700; white-space:nowrap; text-align:left}
     </div>
     <div class="bar"><i id="hBar" style="width:0%"></i></div>
     <div class="hint" id="hHint">دخّل دخلك الشهري من تبويب «التوفير» عشان أحسبلك الباقي.</div>
+    <div class="hint" id="hSplit" style="margin-top:4px"></div>
   </div>
 </header>
 
@@ -226,12 +227,12 @@ const CATS=[
  {id:'home',  l:'إيجار وبيت',   c:'#4A5A66'},
  {id:'other', l:'حاجات تانية',  c:'#8A9A93'}
 ];
-const SRCS=['Emirates NBD','FAB','ADCB','Mashreq','Apple Pay','Careem Pay','كاش'];
+const SRCS=['Mashreq','EIB','Apple Pay','Careem Pay','كاش'];
 const MON=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
 const KEY='masarify:data';
 
-let S={income:0, annual:0, goalName:'', goalAmount:0, expenses:[]};
-let tab='add', selMonth=ym(new Date()), draft={cat:'food', src:'Emirates NBD', amount:'', sms:'', note:'', date:''};
+let S={income:0, annual:0, goalName:'', goalAmount:0, expenses:[], cards:{}, moves:[]};
+let tab='add', selMonth=ym(new Date()), draft={cat:'food', src:'Mashreq', amount:'', sms:'', note:'', date:''};
 
 /* بيحفظ اللي المستخدم كتبه قبل أي إعادة رسم للشاشة */
 function sync(){
@@ -301,17 +302,76 @@ const CAT_MAP=[['careem','trans'],['uber','trans'],['salik','trans'],['adnoc','t
   ['chiller','home'],['maintenance','home'],['صيانة','home'],
   ['school','other'],['nursery','other'],['insurance','other'],['amer','other'],['tasheel','other']];
 
-const SRC_MAP=[['emirates nbd','Emirates NBD'],['enbd','Emirates NBD'],['fab','FAB'],['adcb','ADCB'],
-  ['adib','ADIB'],['mashreq','Mashreq'],['dubai islamic','Dubai Islamic'],['rakbank','RAKBANK'],
-  ['wio','Wio'],['liv.','Liv.'],['careem pay','Careem Pay'],['apple pay','Apple Pay']];
+const SRC_MAP=[['mashreq','Mashreq'],['neo','Mashreq'],
+  ['emirates islamic','EIB'],['emiratesislamic','EIB'],['eib','EIB'],['islamic card','EIB'],
+  ['careem pay','Careem Pay'],['apple pay','Apple Pay'],
+  ['emirates nbd','Emirates NBD'],['enbd','Emirates NBD'],['fab','FAB'],['adcb','ADCB']];
 
 function guessCat(txt){const t=(txt||'').toLowerCase();const h=CAT_MAP.find(p=>t.includes(p[0]));return h?h[1]:null}
 function guessSrc(txt){const t=(txt||'').toLowerCase();const h=SRC_MAP.find(p=>t.includes(p[0]));return h?h[1]:null}
 
+/* ---------- التعرف على البطاقة: آخر 4 أرقام + نوعها ---------- */
+function guessCard(msg){
+  const t=msg||'';
+  const m=t.match(/(?:ending(?:\s+(?:with|in))?|card|a\/c|acct|account|xx+|\*{2,})\s*:?\s*(\d{4})/i);
+  const last4=m?m[1]:null;
+  let kind=null;
+  if(/credit\s*card|بطاقة\s*ائتمان/i.test(t)) kind='credit';
+  else if(/debit\s*card|current\s*account|savings|بطاقة\s*خصم/i.test(t)) kind='debit';
+  return {last4, kind};
+}
+
+/* بيسجّل البطاقة أول مرة تظهر، وبعدها تقدر تسمّيها من تبويب التوفير */
+function registerCard(last4, kind, src){
+  if(!last4) return null;
+  if(!S.cards[last4]){
+    S.cards[last4]={name:(src&&src!=='غير محدد'?src:'بطاقة')+' ••'+last4, kind:kind||'credit'};
+  }else if(kind && !S.cards[last4].kindSet){
+    S.cards[last4].kind=kind;
+  }
+  return last4;
+}
+function cardOf(e){ return e.card && S.cards[e.card] ? S.cards[e.card] : null }
+function isCredit(e){ const c=cardOf(e); return c ? c.kind==='credit' : false }
+
+/* ---------- تصنيف الرسالة ---------- */
+/* مهم: تحويل فلوس من بطاقة الخصم لبطاقة الائتمان مش مصروف — ده سداد لفاتورة اتسجلت قبل كده.
+   لو حسبناه مصروف هيتعد مرتين: مرة وقت الشراء ومرة وقت السداد. */
+const JUNK_RE=/(otp|one[- ]time|do not share|verification|offer|enjoy \d|discount|win |congratulations|promo)/i;
+const PAY_WORD=/(payment|paid|settle|settlement|transfer|transferred|سداد|تحويل)/i;
+const CARD_REF=/(credit card|card ending|to your card|towards your card|to card|card no|بطاقة)/i;
+const INCOME_RE=/(credited|received|refund|reversal|cashback|salary|deposit|ايداع|استرداد|مرتب)/i;
+const SPEND_RE=/(debited|purchase|purchased|spent|paid|deducted|charged|was used|has been used|withdraw|\bpos\b|\batm\b)/i;
+const AT_MERCHANT=/\bat\s+[A-Za-z]/;
+
+function classify(msg){
+  const t=msg||'';
+  if(JUNK_RE.test(t)) return null;
+  if(PAY_WORD.test(t) && CARD_REF.test(t) && !AT_MERCHANT.test(t)) return 'payment';
+  if(INCOME_RE.test(t)) return 'income';
+  if(SPEND_RE.test(t)) return 'spend';
+  return null;
+}
+
+/* في رسايل السداد بيبقى فيه رقمين بطاقة — بناخد بطاقة الائتمان لأنها هي اللي اتسدد ليها */
+function payCard(msg){
+  const all=[...(msg||'').matchAll(/(?:ending(?:\s+(?:with|in))?|card|a\/c|acct|account|xx+|\*{2,})\s*:?\s*(\d{4})/gi)].map(m=>m[1]);
+  const credit=all.find(x=>S.cards[x] && S.cards[x].kind==='credit');
+  return credit || all[all.length-1] || null;
+}
+
+function addMove(kind, amount, date, card, note){
+  if(S.moves.some(m=>m.kind===kind && Math.abs(m.amount-amount)<0.01 &&
+                     Math.abs(new Date(m.date)-new Date(date))<=86400000)) return false;
+  S.moves.push({id:Date.now()+Math.random(), kind, amount, date, card, note:(note||'').slice(0,60)});
+  return true;
+}
+function movesOf(m, kind){ return S.moves.filter(x=>x.kind===kind && x.date.slice(0,7)===m) }
+
 /* ---------- استيراد الملف اللي الاختصار بيكتبه ---------- */
 /* كل سطر شكله:  2026-08-20 14:33|275.50|نص الرسالة كامل */
 function importText(raw){
-  let added=0, skipped=0;
+  let added=0, skipped=0, moved=0;
   (raw||'').split(/\r?\n/).forEach(line=>{
     line=line.trim(); if(!line) return;
     const i1=line.indexOf('|'); if(i1<0) return;
@@ -326,14 +386,25 @@ function importText(raw){
       msg=line.slice(i2+1).trim();
     }
     if(!amount||!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+    const kind=classify(msg);
+    if(!kind){skipped++; return}
+    if(kind!=='spend'){                       // سداد بطاقة أو فلوس داخلة
+      if(addMove(kind, amount, date, kind==='payment'?payCard(msg):null, msg)) moved++; else skipped++;
+      return;
+    }
     if(S.expenses.some(e=>e.date===date && Math.abs(e.amount-amount)<0.01 && e.note===msg.slice(0,60))){skipped++; return}
+    const src=guessSrc(msg)||'غير محدد';
+    const g=guessCard(msg); registerCard(g.last4, g.kind, src);
     S.expenses.push({id:Date.now()+Math.random(), amount, cat:guessCat(msg)||'other',
-                     src:guessSrc(msg)||'غير محدد', note:msg.slice(0,60), date});
+                     src, card:g.last4, note:msg.slice(0,60), date});
     added++;
   });
-  if(added) save();
+  if(added||moved) save();
   render();
-  toast(added? ('اتضاف '+added+' عملية'+(skipped?' · '+skipped+' مكررة اتجاهلت':'')) : 'مفيش عمليات جديدة');
+  const parts=[];
+  if(added) parts.push(added+' عملية');
+  if(moved) parts.push(moved+' سداد/إيداع');
+  toast(parts.length? ('اتضاف '+parts.join(' · ')+(skipped?' · '+skipped+' اتجاهلت':'')) : 'مفيش حاجة جديدة');
 }
 
 function importFile(input){
@@ -364,7 +435,9 @@ function addExpense(){
   const a=parseFloat(document.getElementById('amount').value);
   if(!a||a<=0) return toast('اكتب مبلغ صح');
   const d=document.getElementById('date').value||today();
-  S.expenses.push({id:Date.now(), amount:a, cat:draft.cat, src:draft.src, note:document.getElementById('note').value.trim(), date:d});
+  const g=guessCard(draft.sms||''); registerCard(g.last4, g.kind, draft.src);
+  S.expenses.push({id:Date.now(), amount:a, cat:draft.cat, src:draft.src, card:g.last4,
+                   note:document.getElementById('note').value.trim(), date:d});
   save(); selMonth=d.slice(0,7);
   draft.amount=''; draft.sms=''; draft.note=''; draft.date='';
   render(); toast('اتسجلت — '+money(a)+' د.إ');
@@ -379,14 +452,24 @@ function saveIncome(){
 }
 function resetAll(){
   if(!confirm('هتمسح كل المصروفات والدخل. تمام؟')) return;
-  S={income:0,annual:0,goalName:'',goalAmount:0,expenses:[]};
+  S={income:0,annual:0,goalName:'',goalAmount:0,expenses:[],cards:{},moves:[]};
   DB.del(KEY);
   render(); toast('اتصفّر كل حاجة');
 }
 
 /* ---------- الواجهة ---------- */
 function header(){
-  const sp=sum(ofMonth(selMonth)), inc=S.income;
+  const list=ofMonth(selMonth);
+  const sp=sum(list), inc=S.income;
+  const credit=sum(list.filter(isCredit));
+  const debit=sp-credit;
+  const paid=sum(movesOf(selMonth,'payment'));
+  const due=Math.max(0, credit-paid);
+  const el=document.getElementById('hSplit');
+  if(el) el.innerHTML = sp>0
+    ? 'ائتمان <b style="color:#E8B4AE">'+money(credit)+'</b>'+(paid>0?' · سددت '+money(paid):'')+
+      ' · متبقي <b style="color:#E8B4AE">'+money(due)+'</b> · من حسابك <b>'+money(debit)+'</b>'
+    : '';
   document.getElementById('hSpent').textContent=money(sp)+' د.إ';
   const bar=document.getElementById('hBar');
   if(inc>0){
@@ -411,7 +494,7 @@ function viewAdd(){
   <div class="card">
     <h2>سجّل مصروف<small>لو دفعت من المحفظة، الصق الرسالة وأنا هطلّع المبلغ.</small></h2>
     <div class="field"><label for="sms">رسالة المحفظة أو البنك</label>
-      <textarea id="sms" placeholder="Your Card ending 1234 was used for AED 275.50 at CARREFOUR…">${esc(draft.sms||'')}</textarea></div>
+      <textarea id="sms" placeholder="AED 275.50 was spent on your Mashreq Credit Card ending 1234 at CARREFOUR…">${esc(draft.sms||'')}</textarea></div>
     <button class="btn ghost" onclick="readSMS()">اقرأ الرسالة</button>
   </div>
 
@@ -463,7 +546,7 @@ function viewTable(){
         <tr>
           <td class="num" style="color:var(--muted);font-size:12.5px;white-space:nowrap">${e.date.slice(8)}/${e.date.slice(5,7)}</td>
           <td><span class="tag" style="background:${cat(e.cat).c}">${cat(e.cat).l}</span>
-              <span class="src">${esc(e.src)}${e.note?' · '+esc(e.note):''}</span></td>
+              <span class="src">${esc(cardOf(e)?cardOf(e).name:e.src)}${e.note?' · '+esc(e.note):''}</span></td>
           <td class="amt num">${money(e.amount)}</td>
           <td><button class="del" aria-label="امسح" onclick="del(${e.id})">×</button></td>
         </tr>`).join('')}
@@ -521,9 +604,15 @@ function viewReport(){
     </div>
     <div class="split">
       <div class="b"><div class="n num">${money(sp)}</div><div class="l">إجمالي الصرف</div></div>
-      <div class="b"><div class="n num">${list.length}</div><div class="l">عدد العمليات</div></div>
+      <div class="b"><div class="n num">${money(sum(list.filter(isCredit)))}</div><div class="l">فاتورة الائتمان</div></div>
       <div class="b"><div class="n num">${money(perDay)}</div><div class="l">في اليوم</div></div>
     </div>
+    ${Object.keys(S.cards).length?`<div style="margin-top:14px">
+      ${Object.entries(S.cards).map(([k,c])=>{
+        const v=sum(list.filter(e=>e.card===k));
+        return v>0?`<div class="line"><span class="k">${esc(c.name)} <span style="color:var(--muted);font-size:12px">${c.kind==='credit'?'ائتمان':'خصم'}</span></span><span class="dots"></span><span class="v num">${money(v)}</span></div>`:'';
+      }).join('')}
+    </div>`:''}
   </div>
 
   <div class="card">
@@ -535,6 +624,17 @@ function viewReport(){
       </div>`).join('')}
     ${topW?`<div class="goalbox">أكتر وسيلة دفع بتصرف منها: <b>${esc(topW[0])}</b> — ${money(topW[1])} د.إ.</div>`:''}
   </div>
+
+  ${(movesOf(selMonth,'payment').length||movesOf(selMonth,'income').length)?`
+  <div class="card">
+    <h2>سداد وفلوس داخلة<small>دي مش مصروفات — متحسبتش في الإجمالي.</small></h2>
+    ${movesOf(selMonth,'payment').map(m=>`
+      <div class="line"><span class="k">سداد ${esc(S.cards[m.card]?S.cards[m.card].name:'بطاقة')}<span style="color:var(--muted);font-size:12px"> · ${m.date.slice(8)}/${m.date.slice(5,7)}</span></span><span class="dots"></span><span class="v num" style="color:var(--money)">${money(m.amount)}</span></div>`).join('')}
+    ${movesOf(selMonth,'income').map(m=>`
+      <div class="line"><span class="k">فلوس داخلة<span style="color:var(--muted);font-size:12px"> · ${m.date.slice(8)}/${m.date.slice(5,7)}</span></span><span class="dots"></span><span class="v num" style="color:var(--money)">${money(m.amount)}</span></div>`).join('')}
+    ${(()=>{const cr=sum(list.filter(isCredit)), pd=sum(movesOf(selMonth,'payment'));
+      return `<div class="goalbox">فاتورة الائتمان الشهر ده <b>${money(cr)}</b> د.إ، سددت منها <b>${money(pd)}</b>، فاضل <b>${money(Math.max(0,cr-pd))}</b> د.إ.</div>`})()}
+  </div>`:''}
 
   <div class="receipt">
     <div class="head"><h3>كشف حساب</h3><p>${monthLabel(selMonth)}</p></div>
@@ -601,6 +701,20 @@ function viewPlan(){
       قسمت الخطة <b>45 / 25 / 30</b> مش 50 / 30 / 20، لأنك مالك سكنك ومش دافع إيجار — أكبر بند عند أي حد هنا مش موجود عندك، فنسبة توفير 20% أقل من اللي وضعك يسمح بيه.
       ${S.goalAmount>0?`<br><br>هدفك «${esc(S.goalName||'هدفك')}» بـ ${money(S.goalAmount)} د.إ هتوصله في حوالي <b>${months} شهر</b> بالمعدل ده.`:''}
     </div>
+  </div>`:''}
+
+  ${Object.keys(S.cards).length?`
+  <div class="card">
+    <h2>بطاقاتي<small>التطبيق بيكتشفها لوحده من الرسايل. سمّيها وحدد نوعها مرة واحدة.</small></h2>
+    ${Object.entries(S.cards).map(([k,c])=>`
+      <div style="display:grid;grid-template-columns:1fr 118px;gap:8px;margin-bottom:9px">
+        <input value="${esc(c.name)}" onchange="S.cards['${k}'].name=this.value;save()">
+        <select onchange="S.cards['${k}'].kind=this.value;S.cards['${k}'].kindSet=1;save();render()">
+          <option value="credit" ${c.kind==='credit'?'selected':''}>ائتمان</option>
+          <option value="debit" ${c.kind==='debit'?'selected':''}>خصم</option>
+        </select>
+      </div>`).join('')}
+    <div class="goalbox">بطاقة <b>الائتمان</b> = فلوس هتدفعها الشهر الجاي. بطاقة <b>الخصم</b> = فلوس خرجت من حسابك دلوقتي. التطبيق بيفصلهم عشان تعرف فاتورتك الجاية كام.</div>
   </div>`:''}
 
   <div class="card">
