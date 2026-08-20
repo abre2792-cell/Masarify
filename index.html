@@ -271,6 +271,23 @@ function toast(t){const el=document.getElementById('toast');el.textContent=t;el.
 function go(t){tab=t;['add','table','report','plan'].forEach(x=>document.getElementById('t-'+x).setAttribute('aria-selected',x===t));render();window.scrollTo({top:0,behavior:'smooth'})}
 
 
+/* ---------- استخراج المبلغ من نص الرسالة ---------- */
+/* بيستبعد الرقم اللي جاي بعد Avl Bal (ده رصيد)، وبيفضّل الدرهم على العملة الأجنبية */
+function extractAmount(txt){
+  const t=(txt||'').replace(/,/g,'');
+  const cur='(?:AED|Dhs?\\.?|د\\.إ|درهم|USD|EUR|GBP|SAR|EGP)';
+  const re=new RegExp(cur+'\\s*(\\d+(?:\\.\\d{1,2})?)|(\\d+(?:\\.\\d{1,2})?)\\s*'+cur,'gi');
+  const bal=/(bal|balance|avl|avail|available|remaining|limit|رصيد|المتاح)/i;
+  let hit=null, any=null, mm;
+  while((mm=re.exec(t))!==null){
+    const val=mm[1]||mm[2];
+    if(bal.test(t.slice(Math.max(0,mm.index-30), mm.index))) continue;
+    if(any===null) any=val;
+    if(/AED|Dh|درهم|د\.إ/i.test(mm[0]) && hit===null) hit=val;
+  }
+  return hit||any;
+}
+
 /* ---------- تخمين الفئة ووسيلة الدفع من نص الرسالة ---------- */
 const CAT_MAP=[['careem','trans'],['uber','trans'],['salik','trans'],['adnoc','trans'],['enoc','trans'],
   ['rta','trans'],['nol','trans'],['parkin','trans'],['petrol','trans'],['كريم','trans'],
@@ -297,11 +314,17 @@ function importText(raw){
   let added=0, skipped=0;
   (raw||'').split(/\r?\n/).forEach(line=>{
     line=line.trim(); if(!line) return;
-    const i1=line.indexOf('|'); const i2=line.indexOf('|', i1+1);
-    if(i1<0||i2<0) return;
+    const i1=line.indexOf('|'); if(i1<0) return;
+    const i2=line.indexOf('|', i1+1);
     const date=line.slice(0,i1).trim().slice(0,10);
-    const amount=parseFloat(line.slice(i1+1,i2).replace(/,/g,''));
-    const msg=line.slice(i2+1).trim();
+    let amount, msg;
+    if(i2<0){                       // تاريخ|الرسالة  → نطلّع المبلغ إحنا
+      msg=line.slice(i1+1).trim();
+      amount=parseFloat(extractAmount(msg));
+    }else{                          // تاريخ|المبلغ|الرسالة
+      amount=parseFloat(line.slice(i1+1,i2).replace(/,/g,''));
+      msg=line.slice(i2+1).trim();
+    }
     if(!amount||!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
     if(S.expenses.some(e=>e.date===date && Math.abs(e.amount-amount)<0.01 && e.note===msg.slice(0,60))){skipped++; return}
     S.expenses.push({id:Date.now()+Math.random(), amount, cat:guessCat(msg)||'other',
@@ -326,18 +349,7 @@ function readSMS(){
   const raw=document.getElementById('sms').value;
   if(!raw.trim()) return toast('الصق رسالة الأول');
   const t=raw.replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/,/g,'');
-  // بناخد كل المبالغ، ونستبعد اللي جاي بعد Avl Bal، ونفضّل الدرهم على العملة الأجنبية
-  const cur='(?:AED|Dhs?\\.?|د\\.إ|درهم|USD|EUR|GBP|SAR|EGP)';
-  const re=new RegExp(cur+'\\s*(\\d+(?:\\.\\d{1,2})?)|(\\d+(?:\\.\\d{1,2})?)\\s*'+cur,'gi');
-  const bal=/(bal|balance|avl|avail|available|remaining|limit|رصيد|المتاح)/i;
-  let hit=null, any=null, mm;
-  while((mm=re.exec(t))!==null){
-    const val=mm[1]||mm[2];
-    if(bal.test(t.slice(Math.max(0,mm.index-30), mm.index))) continue;
-    if(any===null) any=val;
-    if(/AED|Dh|درهم|د\.إ/i.test(mm[0]) && hit===null) hit=val;
-  }
-  const amt=hit||any;
+  const amt=extractAmount(t);
   if(!amt) return toast('مقدرتش ألاقي المبلغ — اكتبه بإيدك');
   sync();
   draft.amount=amt;
@@ -408,7 +420,7 @@ function viewAdd(){
     <input id="file" type="file" accept=".txt,.csv,text/plain" onchange="importFile(this)"
            style="padding:9px;background:#F5F7F2">
     <div class="field" style="margin-top:11px"><label for="paste">أو الصق السطور هنا</label>
-      <textarea id="paste" placeholder="2026-08-20 14:33|275.50|Your Card ending 1234 was used for AED 275.50 at CARREFOUR"></textarea></div>
+      <textarea id="paste" placeholder="2026-08-20 14:33|Your Card ending 1234 was used for AED 275.50 at CARREFOUR. Avl Bal AED 9,000"></textarea></div>
     <button class="btn ghost" onclick="importText(document.getElementById('paste').value)">استورد</button>
   </div>
 
