@@ -226,6 +226,7 @@ tr.catline:active{background:#F5F7F2}
     <button role="tab" id="t-moves" aria-selected="false" onclick="go('moves')">التحويلات</button>
     <button role="tab" id="t-report" aria-selected="false" onclick="go('report')">التقرير</button>
     <button role="tab" id="t-plan" aria-selected="false" onclick="go('plan')">التوفير</button>
+    <button role="tab" id="t-goal" aria-selected="false" onclick="location.href='plan.html'">الخطة</button>
   </div>
 </nav>
 
@@ -263,7 +264,7 @@ const SRCS=['Mashreq','EIB','Apple Pay','Careem Pay','كاش'];
 const MON=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
 const KEY='masarify:data';
 
-let S={income:0, annual:0, goalName:'', goalAmount:0, expenses:[], cards:{}, moves:[], dismissed:[], learned:{}};
+let S={income:0, annual:0, goalName:'', goalAmount:0, myAccounts:'', expenses:[], cards:{}, moves:[], dismissed:[], learned:{}};
 let openCat='';
 let tab='add', selMonth=ym(new Date()), draft={cat:'food', src:'Mashreq', amount:'', sms:'', note:'', date:''};
 
@@ -556,7 +557,28 @@ function isCredit(e){ const c=cardOf(e); return c ? c.kind==='credit' : false }
    لو حسبناه مصروف هيتعد مرتين: مرة وقت الشراء ومرة وقت السداد. */
 const JUNK_RE=/(otp|one[- ]time|do not share|verification|offer|enjoy \d|discount|win |congratulations|promo|t&c|opt out|to enroll|avail the|pay as low as|instal?lment plan|convert .{0,20}instal|points redemption|cashback up to)/i;
 /* تحويل بين حساباتك أنت — الفلوس مخرجتش من عندك */
-const INTERNAL_RE=/(you transferred|transferred aed[^.]{0,25}from (your )?account|to your own account|own account transfer|internal transfer|between your accounts|from your account to your account|تحويل بين حساباتك)/i;
+const INTERNAL_RE=/(you transferred|transferred aed[^.]{0,25}from (your )?account|to your own account|own account transfer|internal transfer|between your accounts|from your account to your account|self transfer|own funds transfer|تحويل بين حساباتك|تحويل بين حساباتي)/i;
+/* كلمة بتدل على نقل فلوس مش شراء */
+const TRANSFER_WORD=/(transfer|transferred|transferring|sent to|moved to|remit|aani|حوّل|حولت|تحويل|حوالة)/i;
+/* أرقام حساباتك: اللي التطبيق عرفها من الرسايل + اللي إنت كتبتها بنفسك في تبويب التوفير */
+function myNums(){
+  const auto=Object.keys(S.cards||{});
+  const manual=(S.myAccounts||'').split(/[^0-9]+/).filter(x=>x.length===4);
+  return {all:[...new Set(auto.concat(manual))], manual};
+}
+/* تحويل من حسابك لحسابك = مش مصروف.
+   بنتأكد بطريقتين: يا إما رقمين من حساباتك ظهروا في نفس الرسالة،
+   يا إما رقم حساب إنت كاتبه بإيدك (زي حساب التوفير) ظهر مع كلمة تحويل. */
+function isOwnTransfer(t){
+  t=t||'';
+  if(!TRANSFER_WORD.test(t)) return false;
+  const {all, manual}=myNums();
+  if(!all.length) return false;
+  const found=[...new Set([...t.matchAll(/(\d{4})/g)].map(m=>m[1]))];
+  /* لازم رقمين من حساباتك في نفس الرسالة: المصدر والوجهة.
+     رقم واحد بس معناه إنك بتحوّل لحد تاني — وده مصروف حقيقي. */
+  return found.filter(n=>all.includes(n)).length>=2;
+}
 /* عملية اترفضت = مفيش فلوس اتخصمت */
 const DECLINED_RE=/(declined|rejected|failed|unsuccessful|not (been )?(processed|completed)|insufficient funds|reversed|مرفوض|فشل)/i;
 /* رسايل كشف الحساب فيها مبالغ بس مش عمليات */
@@ -575,6 +597,8 @@ function classify(msg){
   if(INTERNAL_RE.test(t) && !/family|support|salary|beneficiary/i.test(t)) return 'internal';
   if(STATEMENT_RE.test(t)) return 'ignore';       /* تذكير بفاتورة، مش عملية */
   if(PAY_WORD.test(t) && TO_CARD_RE.test(t) && !AT_MERCHANT.test(t)) return 'payment';
+  /* تحويل من حسابك لحسابك — نفس الفلوس بتتنقل، مش مصروف جديد */
+  if(isOwnTransfer(t) && !/family|support|salary|beneficiary/i.test(t) && !AT_MERCHANT.test(t)) return 'internal';
   if(INCOME_RE.test(t)) return 'income';
   if(SPEND_RE.test(t)) return 'spend';
   /* خطة احتياطية: رسالة بنك فيها مبلغ ورقم بطاقة، ومش دخل ولا كشف حساب → مصروف */
@@ -721,11 +745,13 @@ function saveIncome(){
   S.annual=parseFloat(document.getElementById('annual').value)||0;
   S.goalName=document.getElementById('goalName').value.trim();
   S.goalAmount=parseFloat(document.getElementById('goalAmount').value)||0;
+  const ma=document.getElementById('myAccounts');
+  if(ma) S.myAccounts=ma.value.trim();
   save(); render(); toast('اتحفظ');
 }
 function resetAll(){
   if(!confirm('هتمسح كل المصروفات والدخل. تمام؟')) return;
-  S={income:0,annual:0,goalName:'',goalAmount:0,expenses:[],cards:{},moves:[],dismissed:[],learned:{}}; pending=[];
+  S={income:0,annual:0,goalName:'',goalAmount:0,myAccounts:'',expenses:[],cards:{},moves:[],dismissed:[],learned:{}}; pending=[];
   DB.del(KEY);
   render(); toast('اتصفّر كل حاجة');
 }
@@ -1060,7 +1086,15 @@ function viewPlan(){
       <div class="field"><label for="goalAmount">مبلغه (د.إ)</label>
         <input id="goalAmount" type="number" inputmode="decimal" placeholder="0" value="${S.goalAmount||''}"></div>
     </div>
+    <div class="field"><label for="myAccounts">أرقام حساباتي (آخر 4 أرقام)</label>
+      <input id="myAccounts" inputmode="numeric" placeholder="مثال: 3201 4417 8290" value="${esc(S.myAccounts||'')}">
+      <div style="font-size:11.5px;color:var(--muted);margin-top:5px">اكتب آخر 4 أرقام لكل حساباتك وبطاقاتك بينهم مسافة. لما تحوّل فلوس من حساب لحساب، التطبيق هيعرف إنها مش مصروف ومش هيحسبها مرتين.</div></div>
     <button class="btn" onclick="saveIncome()">احفظ</button>
+  </div>
+
+  <div class="card">
+    <h2>خطتك بالتفصيل<small>الأقساط والخط الزمني وأهداف الرصيد.</small></h2>
+    <button class="btn" onclick="location.href='plan.html'">افتح الخطة</button>
   </div>
 
   ${inc>0?`
