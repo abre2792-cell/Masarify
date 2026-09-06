@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14232B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>الخطة — مصروفي</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#14232B;
+  --ink-2:#3A4F58;
+  --muted:#6E848D;
+  --paper:#EDF1F0;
+  --card:#FFFFFF;
+  --brass:#A67C2E;
+  --sage:#356B55;
+  --alert:#9E3B2E;
+  --line:#D6DEDB;
+  --tick-off:#C9D4D1;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:"IBM Plex Sans Arabic",system-ui,sans-serif;
+  font-weight:400;
+  line-height:1.65;
+  font-size:16px;
+  padding-bottom:64px;
+}
+.wrap{max-width:640px;margin:0 auto;padding:0 18px}
+
+/* ---------- top bar ---------- */
+.bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 18px;
+  background:var(--ink);color:#fff;
+  padding-top:calc(14px + env(safe-area-inset-top));
+}
+.bar h1{margin:0;font-size:17px;font-weight:600;letter-spacing:-.01em}
+.bar a{
+  color:#9FB6BD;text-decoration:none;font-size:14px;font-weight:500;
+  border:1px solid #2E4450;border-radius:7px;padding:5px 11px;
+}
+.bar a:focus-visible{outline:2px solid #fff;outline-offset:2px}
+
+/* ---------- hero: runway of protected months ---------- */
+.hero{background:var(--ink);color:#fff;padding:6px 0 30px}
+.hero .lead{font-size:15px;color:#9FB6BD;margin:0 0 4px}
+.hero .big{
+  font-size:clamp(38px,13vw,58px);font-weight:700;line-height:1;
+  letter-spacing:-.03em;margin:0;
+}
+.hero .big span{font-size:.42em;font-weight:500;color:#9FB6BD;letter-spacing:0}
+.hero .sub{font-size:14px;color:#8AA3AB;margin:10px 0 0;max-width:44ch}
+
+.ticks{display:flex;gap:3px;margin:22px 0 8px;height:34px;align-items:flex-end}
+.tick{flex:1;border-radius:1px;background:var(--tick-off);opacity:.28;height:14px}
+.tick.done{background:var(--brass);opacity:1;height:14px}
+.tick.now{background:#fff;height:34px;opacity:1}
+.ticklabels{display:flex;justify-content:space-between;font-size:12px;color:#7A9299}
+
+/* ---------- sections ---------- */
+section{margin:34px 0}
+h2{
+  font-size:20px;font-weight:600;letter-spacing:-.02em;
+  margin:0 0 4px;
+}
+.note{font-size:14px;color:var(--muted);margin:0 0 16px;max-width:52ch}
+
+.card{
+  background:var(--card);border:1px solid var(--line);
+  border-radius:12px;padding:16px;margin-bottom:10px;
+}
+
+/* split of the single transfer */
+.split{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.split .total{
+  padding:16px;border-bottom:1px solid var(--line);
+  display:flex;align-items:baseline;justify-content:space-between;
+}
+.split .total b{font-size:30px;font-weight:700;letter-spacing:-.02em}
+.split .total span{font-size:14px;color:var(--muted)}
+.part{padding:13px 16px;display:flex;gap:12px;align-items:flex-start}
+.part+.part{border-top:1px solid var(--line)}
+.part .amt{font-size:19px;font-weight:600;min-width:74px;letter-spacing:-.01em}
+.part .who{font-size:15px;font-weight:500;margin:0}
+.part .why{font-size:13px;color:var(--muted);margin:2px 0 0;line-height:1.5}
+.part.save .amt{color:var(--sage)}
+.part.res .amt{color:var(--brass)}
+
+/* payments table */
+table{width:100%;border-collapse:collapse;font-size:15px}
+th{
+  text-align:right;font-weight:500;font-size:13px;color:var(--muted);
+  padding:0 0 8px;border-bottom:1px solid var(--line);
+}
+th:last-child,td:last-child{text-align:left}
+td{padding:10px 0;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:none}
+td b{font-weight:600}
+td small{display:block;color:var(--muted);font-size:12.5px;line-height:1.45;margin-top:1px}
+tfoot td{border-top:2px solid var(--ink);border-bottom:none;font-weight:600;padding-top:11px}
+
+/* progress tracker */
+.track label{display:block;font-size:14px;color:var(--ink-2);margin-bottom:7px;font-weight:500}
+.track input{
+  width:100%;font-family:inherit;font-size:19px;font-weight:600;
+  padding:12px 14px;border:1px solid var(--line);border-radius:9px;
+  background:#fff;color:var(--ink);
+}
+.track input:focus{outline:2px solid var(--sage);outline-offset:1px;border-color:transparent}
+.meter{height:9px;background:#DDE4E2;border-radius:5px;overflow:hidden;margin:16px 0 9px}
+.meter i{display:block;height:100%;background:var(--sage);border-radius:5px;width:0;transition:width .45s ease}
+.meterrow{display:flex;justify-content:space-between;font-size:13.5px;color:var(--muted)}
+.verdict{font-size:15px;margin:14px 0 0;line-height:1.6}
+.verdict b{font-weight:600}
+
+/* timeline */
+.tl{position:relative;padding-inline-start:22px;margin-top:6px}
+.tl::before{
+  content:"";position:absolute;inset-inline-start:4px;top:8px;bottom:8px;
+  width:1px;background:var(--line);
+}
+.ev{position:relative;padding:0 0 22px}
+.ev::before{
+  content:"";position:absolute;inset-inline-start:-22px;top:8px;
+  width:9px;height:9px;border-radius:50%;
+  background:var(--paper);border:2px solid var(--muted);
+}
+.ev.key::before{background:var(--brass);border-color:var(--brass);width:11px;height:11px;inset-inline-start:-23px;top:7px}
+.ev .when{font-size:13px;color:var(--muted);font-weight:500}
+.ev .what{font-size:15.5px;font-weight:500;margin:1px 0 0}
+.ev .num{font-size:15.5px;font-weight:600;color:var(--sage)}
+.ev .det{font-size:13.5px;color:var(--muted);margin:3px 0 0;line-height:1.55}
+
+/* rules */
+ol.rules{margin:0;padding-inline-start:20px}
+ol.rules li{margin-bottom:11px;font-size:15px;line-height:1.6}
+ol.rules li b{font-weight:600}
+
+/* callout */
+.flag{
+  background:#fff;border:1px solid var(--line);
+  border-inline-start:3px solid var(--alert);
+  border-radius:0 12px 12px 0;padding:15px 16px;
+}
+.flag h3{margin:0 0 6px;font-size:16px;font-weight:600;color:var(--alert)}
+.flag p{margin:0;font-size:14.5px;line-height:1.6;color:var(--ink-2)}
+.flag p+p{margin-top:9px}
+
+.accounts{list-style:none;margin:12px 0 0;padding:0}
+.accounts li{
+  display:flex;justify-content:space-between;gap:12px;
+  padding:10px 0;border-bottom:1px solid var(--line);font-size:15px;
+}
+.accounts li:last-child{border-bottom:none}
+.accounts .role{color:var(--muted);font-size:13.5px;text-align:left;flex-shrink:0}
+
+.foot{font-size:13px;color:var(--muted);text-align:center;margin:40px 0 0;line-height:1.6}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <h1>الخطة</h1>
+  <a href="index.html">رجوع للتطبيق</a>
+</div>
+
+<div class="hero">
+  <div class="wrap">
+    <p class="lead">قسطك مقفول على 3.95%</p>
+    <p class="big"><span id="mLeft">28</span> <span>شهر متبقي</span></p>
+    <div class="ticks" id="ticks" aria-hidden="true"></div>
+    <div class="ticklabels"><span>يناير 2026</span><span>يناير 2029</span></div>
+    <p class="sub">كل شرطة شهر. بعد آخر واحدة السعر بيتحول لمتغير ويتراجع كل 3 شهور. الخطة كلها مبنية إنك توصل هناك وإنت جاهز.</p>
+  </div>
+</div>
+
+<div class="wrap">
+
+<section>
+  <h2>يوم نزول الراتب</h2>
+  <p class="note">تحويل واحد لراك بنك، وجواه جيبين. حوّلهم قبل ما تصرف أي حاجة.</p>
+  <div class="split">
+    <div class="total"><b>5,872</b><span>درهم → راك بنك</span></div>
+    <div class="part save">
+      <div class="amt">4,314</div>
+      <div>
+        <p class="who">ادخار</p>
+        <p class="why">دي اللي بتبني الرصيد. ممنوع تلمسها.</p>
+      </div>
+    </div>
+    <div class="part res">
+      <div class="amt">1,558</div>
+      <div>
+        <p class="who">احتياطي المصاريف السنوية</p>
+        <p class="why">رسوم الخدمة 13,000 · تأمين السيارة · تجديد الإقامة · الصيانة. بتتصرف من نفس الحساب لكن محسوبة لوحدها.</p>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:10px">
+    <p style="margin:0;font-size:14.5px;color:var(--ink-2);line-height:1.6">الباقي في حساب دبي الإسلامي: <b>10,128</b> — منهم 7,128 أقساط وفواتير بتتخصم آلي، و3,000 معيشة.</p>
+  </div>
+</section>
+
+<section>
+  <h2>فين بتروح فلوسك</h2>
+  <table>
+    <thead><tr><th>البند</th><th>شهرياً</th></tr></thead>
+    <tbody>
+      <tr><td>رهن سكاي كورتس<small>إجارة، 3.95% ثابت، شامل تكافل الحياة</small></td><td><b>2,573</b></td></tr>
+      <tr><td>قسط السيارة<small>مرابحة — آخر قسط يوليو 2028</small></td><td><b>2,355</b></td></tr>
+      <tr><td>كهربا وميه وتبريد ونت</td><td><b>1,200</b></td></tr>
+      <tr><td>بنزين وسالك ومواقف</td><td><b>1,000</b></td></tr>
+      <tr><td>احتياطي المصاريف السنوية<small>18,700 في السنة مقسومة على 12</small></td><td><b>1,558</b></td></tr>
+      <tr><td>معيشة<small>أكل، تليفون، خروج، متفرقات</small></td><td><b>3,000</b></td></tr>
+      <tr><td>ادخار</td><td><b style="color:var(--sage)">4,314</b></td></tr>
+    </tbody>
+    <tfoot><tr><td>الدخل</td><td>16,000</td></tr></tfoot>
+  </table>
+</section>
+
+<section class="track">
+  <h2>إنت فين دلوقتي</h2>
+  <p class="note">اكتب رصيد راك بنك وشوف مكانك من الهدف.</p>
+  <div class="card">
+    <label for="bal">رصيد راك بنك اليوم (درهم)</label>
+    <input id="bal" type="number" inputmode="numeric" placeholder="10000" autocomplete="off">
+    <div class="meter"><i id="fill"></i></div>
+    <div class="meterrow"><span id="pct">0%</span><span>الهدف هذا الشهر <b id="goal">—</b></span></div>
+    <p class="verdict" id="verdict">اكتب الرصيد عشان أقارنه بالهدف.</p>
+  </div>
+</section>
+
+<section>
+  <h2>الخط الزمني</h2>
+  <p class="note">الأرقام دي رصيد راك بنك المستهدف في كل محطة.</p>
+  <div class="tl">
+    <div class="ev key">
+      <div class="when">أكتوبر 2026</div>
+      <p class="what">تجديد الإقامة والهوية</p>
+      <p class="det">تنتهي 2 أكتوبر. ده أخطر بند في الخطة كلها — رهن نشط وشيك ضمان 576,000 مع إقامة منتهية وضع مش مقبول.</p>
+    </div>
+    <div class="ev">
+      <div class="when">ديسمبر 2026</div>
+      <p class="what"><span class="num">18,600</span></p>
+      <p class="det">أول محطة. لسه تغطية شهر ونص بس.</p>
+    </div>
+    <div class="ev">
+      <div class="when">يونيو 2027</div>
+      <p class="what"><span class="num">44,500</span></p>
+      <p class="det">تغطية 4 شهور. هنا وقت شهادة PMP لو الشغل مستقر.</p>
+    </div>
+    <div class="ev">
+      <div class="when">ديسمبر 2027</div>
+      <p class="what"><span class="num">70,400</span></p>
+      <p class="det">تغطية 6 شهور. الأمان الحقيقي بيبدأ من هنا.</p>
+    </div>
+    <div class="ev key">
+      <div class="when">يوليو 2028</div>
+      <p class="what">آخر قسط سيارة · <span class="num">100,600</span></p>
+      <p class="det">2,355 بتتحرر. الادخار الشهري بيقفز من 4,314 لـ 6,669.</p>
+    </div>
+    <div class="ev key">
+      <div class="when">أكتوبر 2028</div>
+      <p class="what">مراجعة سعر الرهن</p>
+      <p class="det">قبل انتهاء الفترة الثابتة بـ 3 شهور. اطلب عروض من 3 بنوك، وروح لدبي الإسلامي بيها.</p>
+    </div>
+    <div class="ev">
+      <div class="when">ديسمبر 2028</div>
+      <p class="what"><span class="num">134,000</span></p>
+      <p class="det">جاهز لأي سيناريو. حتى لو القسط طلع 3,958 هتفضل بفائض 5,284.</p>
+    </div>
+    <div class="ev key">
+      <div class="when">يناير 2029</div>
+      <p class="what">السعر يتحول لمتغير</p>
+      <p class="det">وبعدها تبدأ الاستثمار المنتظم — 5,300 شهرياً.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>التحويل بين حساباتي مش مصروف</h2>
+  <p class="note">لما تنقل فلوس من حساب لحساب، أو تسدد بطاقة ائتمان، دي مش مصاريف جديدة — دي نفس الفلوس بتتحرك. لو التطبيق حسبها، تقريرك هيبقى غلط.</p>
+  <div class="card">
+    <ul class="accounts">
+      <li>دبي الإسلامي — خصم<span class="role">التشغيل</span></li>
+      <li>راك بنك — خصم<span class="role">الادخار</span></li>
+      <li>مشرق — ائتمان<span class="role">مصاريف يومية</span></li>
+      <li>الإمارات الإسلامي — ائتمان<span class="role">فواتير</span></li>
+    </ul>
+  </div>
+  <div class="flag" style="margin-top:12px">
+    <h3>الحالتين اللي بتتحسب مرتين</h3>
+    <p>تحويلك 5,872 لراك بنك بييجي كخصم من دبي الإسلامي. لو اتسجل مصروف، بيبان إنك صرفت الادخار.</p>
+    <p>سدادك بطاقة مشرق بييجي كخصم كمان — وإنت أصلاً سجّلت كل عملية شراء بالبطاقة. فبتتحسب مرتين.</p>
+    <p>الاتنين دول لازم يروحوا تبويب التحويلات. لو ظهروا في الخصم، غيّر التصنيف مرة واحدة والتطبيق هيفتكرها.</p>
+  </div>
+</section>
+
+<section>
+  <h2>قواعد ثابتة</h2>
+  <ol class="rules">
+    <li><b>بطاقة راك بنك تفضل في الدرج.</b> بقى حساب ادخار. أي مصروف منه إنذار مش معاملة عادية.</li>
+    <li><b>الاحتياطي السنوي مش ادخار.</b> رصيد راك بنك فيه جزء محجوز لرسوم الخدمة. متحسبوش من هدفك.</li>
+    <li><b>متأخرش قسطين متتاليين.</b> عقدك بيخلي كل الأقساط مستحقة دفعة واحدة. لو حسيت بضغط جاي، كلّم البنك قبل ما تتأخر.</li>
+    <li><b>متزودش أي دين جديد.</b> نسبة عبء الدين 30.8% دلوقتي في أفضل حالاتها.</li>
+    <li><b>ما تسددش السيارة مبكراً.</b> التوفير 1,500 بس مقابل إفراغ سيولتك. كمّل لآخرها يوليو 2028.</li>
+    <li><b>راجع الخطة كل 6 شهور</b> — أو فوراً لو الراتب أو الشغل اتغير.</li>
+  </ol>
+</section>
+
+<p class="foot">الأرقام من مستندات التمويل MF190310 ومرابحة السيارة.<br>دي أداة متابعة شخصية، مش استشارة مالية مرخّصة.</p>
+
+</div>
+
+<script>
+(function(){
+  // ---- fixed-rate runway ----
+  var START = new Date(2026,0,1);      // بداية الفترة الثابتة
+  var TOTAL = 36;                       // شهور
+  var now   = new Date();
+
+  function monthsBetween(a,b){
+    return (b.getFullYear()-a.getFullYear())*12 + (b.getMonth()-a.getMonth());
+  }
+
+  var elapsed = Math.max(0, Math.min(TOTAL, monthsBetween(START, now)));
+  var left    = TOTAL - elapsed;
+  document.getElementById('mLeft').textContent = left;
+
+  var ticks = document.getElementById('ticks'), html = '';
+  for(var i=0;i<TOTAL;i++){
+    var cls = i < elapsed ? 'done' : '';
+    if(i === elapsed) cls = 'now';
+    html += '<span class="tick '+cls+'"></span>';
+  }
+  ticks.innerHTML = html;
+
+  // ---- savings target curve ----
+  // الشهر صفر = أكتوبر 2026، رصيد البداية 10,000
+  var BASE   = new Date(2026,9,1);
+  var START_BAL = 10000;
+  var RATE_1 = 4314;                    // قبل خلاص السيارة
+  var RATE_2 = 6669;                    // بعد يوليو 2028
+  var CAR_END = 21;                     // شهور من أكتوبر 2026 لحد يوليو 2028
+
+  function targetAt(d){
+    var n = monthsBetween(BASE, d);
+    if(n <= 0) return START_BAL;
+    if(n <= CAR_END) return START_BAL + RATE_1*n;
+    return START_BAL + RATE_1*CAR_END + RATE_2*(n-CAR_END);
+  }
+
+  var goal = targetAt(now);
+  var fmt  = function(n){ return Math.round(n).toLocaleString('en-US'); };
+  document.getElementById('goal').textContent = fmt(goal);
+
+  var input   = document.getElementById('bal');
+  var fill    = document.getElementById('fill');
+  var pct     = document.getElementById('pct');
+  var verdict = document.getElementById('verdict');
+
+  function save(v){ try{ localStorage.setItem('plan_bal', v); }catch(e){} }
+  function load(){ try{ return localStorage.getItem('plan_bal'); }catch(e){ return null; } }
+
+  function render(){
+    var v = parseFloat(input.value);
+    if(isNaN(v) || v < 0){
+      fill.style.width = '0%';
+      pct.textContent = '0%';
+      verdict.textContent = 'اكتب الرصيد عشان أقارنه بالهدف.';
+      return;
+    }
+    var p = Math.max(0, Math.min(100, (v/goal)*100));
+    fill.style.width = p.toFixed(1)+'%';
+    pct.textContent = Math.round(p)+'%';
+
+    var diff = v - goal;
+    var months = v / 11600;             // مصاريفك الشهرية الكاملة
+    var cover  = months.toFixed(1);
+
+    if(diff >= 0){
+      verdict.innerHTML = 'إنت متقدم على الهدف بـ <b>'+fmt(diff)+'</b> درهم. الرصيد ده يغطيك <b>'+cover+'</b> شهر لو الدخل وقف.';
+    }else{
+      verdict.innerHTML = 'ناقصك <b>'+fmt(-diff)+'</b> درهم عن هدف الشهر ده. الرصيد الحالي يغطيك <b>'+cover+'</b> شهر لو الدخل وقف.';
+    }
+    save(input.value);
+  }
+
+  var stored = load();
+  if(stored) input.value = stored;
+  input.addEventListener('input', render);
+  render();
+})();
+</script>
+</body>
+</html>
